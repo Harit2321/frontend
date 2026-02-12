@@ -125,6 +125,8 @@ export default function WizardPage() {
                 services: services.filter(s => s.name.trim() !== ''),
             };
 
+            console.log('Creating project...', projectData);
+
             const response = await fetch('/api/projects', {
                 method: 'POST',
                 headers: {
@@ -137,6 +139,17 @@ export default function WizardPage() {
 
             if (!response.ok) {
                 throw new Error(data.message || 'Failed to save project');
+            }
+
+            // Log Cal.com sync status
+            if (data.data?.calComSync) {
+                console.log('📅 Cal.com Sync Status:', data.data.calComSync);
+
+                if (data.data.calComSync.synced) {
+                    console.log('✅ Services synced to Cal.com:', data.data.calComSync.message);
+                } else {
+                    console.warn('⚠️ Cal.com sync issue:', data.data.calComSync.message);
+                }
             }
 
             setShowSuccess(true);

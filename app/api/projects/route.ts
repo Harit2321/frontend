@@ -10,6 +10,7 @@ import {
     handleValidationError,
     handleDatabaseError,
 } from '@/lib/api-response';
+import { setupCalComIntegration } from '@/lib/calcom';
 
 /**
  * GET /api/projects
@@ -43,7 +44,7 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/projects
- * Create a new project with its services
+ * Create a new project with its services and sync to Cal.com
  */
 export async function POST(request: NextRequest) {
     try {
@@ -97,7 +98,86 @@ export async function POST(request: NextRequest) {
             });
         });
 
-        return successResponse(project, 'Project created successfully', 201);
+        // After successfully saving to database, sync to Cal.com
+        // IMPORTANT: This is called immediately after DB save completes
+        let calComStatus = {
+            synced: false,
+            message: 'Cal.com sync not attempted',
+            details: null as any
+        };
+
+        if (project && validatedData.services && validatedData.services.length > 0) {
+            console.log('🔄 Syncing project to Cal.com immediately after DB save...');
+
+            try {
+                // Prepare services for Cal.com
+                const calComServices = validatedData.services.map(service => ({
+                    name: service.name,
+                    duration: typeof service.duration === 'string' ? parseInt(service.duration) : service.duration,
+                    price: service.price ? (typeof service.price === 'string' ? parseFloat(service.price) : service.price) : null,
+                }));
+
+                // Prepare schedule for Cal.com
+                const calComSchedule = Array.isArray(validatedData.schedule)
+                    ? validatedData.schedule.map((day: any) => ({
+                        day: day.day,
+                        enabled: day.enabled,
+                        start: day.start,
+                        end: day.end,
+                    }))
+                    : [];
+
+                // AWAIT the Cal.com integration to ensure it completes
+                const calComResult = await setupCalComIntegration(calComServices, calComSchedule);
+
+                if (calComResult.success) {
+                    const servicesCreated = calComResult.servicesResult?.results?.filter((r: any) => r.success).length || 0;
+
+                    console.log('✅ Cal.com integration successful:', {
+                        projectId: project.id,
+                        servicesCreated,
+                        scheduleCreated: calComResult.scheduleResult?.success
+                    });
+
+                    calComStatus = {
+                        synced: true,
+                        message: `Successfully synced ${servicesCreated} service(s) to Cal.com`,
+                        details: {
+                            servicesCreated,
+                            scheduleCreated: calComResult.scheduleResult?.success,
+                            results: calComResult.servicesResult?.results
+                        }
+                    };
+                } else {
+                    console.error('❌ Cal.com integration failed:', calComResult.error);
+                    calComStatus = {
+                        synced: false,
+                        message: 'Cal.com sync failed, but project was created successfully',
+                        details: { error: calComResult.error }
+                    };
+                }
+            } catch (error: any) {
+                console.error('❌ Cal.com integration error:', error);
+                calComStatus = {
+                    synced: false,
+                    message: 'Cal.com sync encountered an error',
+                    details: { error: error.message }
+                };
+                // Don't fail the project creation if Cal.com sync fails
+            }
+        }
+
+        // Return project data with Cal.com sync status
+        return successResponse(
+            {
+                ...project,
+                calComSync: calComStatus
+            },
+            calComStatus.synced
+                ? 'Project created and synced to Cal.com successfully'
+                : 'Project created successfully (Cal.com sync pending)',
+            201
+        );
     } catch (error: any) {
         if (error instanceof ZodError) {
             return handleValidationError(error);
