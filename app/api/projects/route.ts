@@ -73,7 +73,7 @@ export async function POST(request: NextRequest) {
                     website: validatedData.website,
                     schedule: validatedData.schedule as any, // Json type
                 },
-            });
+            }); 
 
             // Create services associated with this project
             if (validatedData.services && validatedData.services.length > 0) {
