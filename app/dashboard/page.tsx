@@ -1,56 +1,78 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 
 interface Project {
     id: string;
-    name: string;
-    business: string;
-    icon: string;
-    status: 'live' | 'draft';
+    agentName: string;
+    businessName?: string;
     language: string;
-    servicesCount: number;
-    schedule: string;
-    bookings: number;
-    calls: number;
-    rate: string;
+    services?: any[];
+    schedule?: any;
+    createdAt: string;
+    updatedAt: string;
 }
 
 export default function DashboardPage() {
     const router = useRouter();
     const [modalOpen, setModalOpen] = useState(false);
     const [newAgentName, setNewAgentName] = useState('');
+    const [projects, setProjects] = useState<Project[]>([]);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
-    const [projects] = useState<Project[]>([
-        {
-            id: 'luxe-studio',
-            name: 'Bella',
-            business: 'Luxe Hair Studio',
-            icon: '💈',
-            status: 'live',
-            language: 'English (US)',
-            servicesCount: 7,
-            schedule: 'Mon–Sat',
-            bookings: 84,
-            calls: 23,
-            rate: '98%'
-        },
-        {
-            id: 'pulse-fitness',
-            name: 'Max',
-            business: 'Pulse Fitness',
-            icon: '🏋️',
-            status: 'live',
-            language: 'English (US)',
-            servicesCount: 4,
-            schedule: 'Mon–Sun',
-            bookings: 64,
-            calls: 19,
-            rate: '94%'
+    // Fetch projects on component mount
+    useEffect(() => {
+        fetchProjects();
+    }, []);
+
+    const fetchProjects = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            const response = await fetch('/api/projects', {
+                credentials: 'include',
+            });
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    // User not authenticated, redirect to login
+                    router.push('/');
+                    return;
+                }
+                throw new Error('Failed to fetch projects');
+            }
+
+            const data = await response.json();
+            setProjects(data.data || []);
+        } catch (err: any) {
+            console.error('Error fetching projects:', err);
+            setError(err.message || 'Failed to load projects');
+        } finally {
+            setLoading(false);
         }
-    ]);
+    };
+
+    const getProjectIcon = (businessName?: string): string => {
+        if (!businessName) return '🤖';
+        const name = businessName.toLowerCase();
+        if (name.includes('hair') || name.includes('salon') || name.includes('beauty')) return '💈';
+        if (name.includes('fitness') || name.includes('gym')) return '🏋️';
+        if (name.includes('restaurant') || name.includes('cafe') || name.includes('food')) return '🍽️';
+        if (name.includes('hotel') || name.includes('resort')) return '🏨';
+        if (name.includes('spa')) return '💆';
+        if (name.includes('dental') || name.includes('doctor') || name.includes('medical')) return '🏥';
+        return '🤖';
+    };
+
+    const getScheduleDisplay = (schedule?: any): string => {
+        if (!schedule) return 'Not set';
+        if (typeof schedule === 'string') return schedule;
+        // Handle JSON schedule object if needed
+        return 'Custom schedule';
+    };
 
     const handleCreateProject = () => {
         if (newAgentName.trim()) {
@@ -261,7 +283,7 @@ export default function DashboardPage() {
                                     lineHeight: '1',
                                 }}>{projects.length}</div>
                                 <div style={{ fontSize: '11px', color: 'var(--green-lt)', marginTop: '6px' }}>
-                                    ↑ {projects.filter(p => p.status === 'live').length} live
+                                    {loading ? '...' : `${projects.length} total`}
                                 </div>
                             </div>
 
@@ -281,7 +303,7 @@ export default function DashboardPage() {
                                     color: 'var(--white)',
                                     letterSpacing: '-0.02em',
                                     lineHeight: '1',
-                                }}>14</div>
+                                }}>0</div>
                             </div>
 
                             <div style={{ background: 'var(--card)', padding: '24px 28px' }}>
@@ -300,7 +322,7 @@ export default function DashboardPage() {
                                     color: 'var(--white)',
                                     letterSpacing: '-0.02em',
                                     lineHeight: '1',
-                                }}>148</div>
+                                }}>0</div>
                             </div>
 
                             <div style={{ background: 'var(--card)', padding: '24px 28px' }}>
@@ -319,7 +341,7 @@ export default function DashboardPage() {
                                     color: 'var(--white)',
                                     letterSpacing: '-0.02em',
                                     lineHeight: '1',
-                                }}>96<span style={{ fontSize: '18px', color: 'var(--gold)' }}>%</span></div>
+                                }}>--<span style={{ fontSize: '18px', color: 'var(--gold)' }}>%</span></div>
                             </div>
                         </div>
 
@@ -335,173 +357,222 @@ export default function DashboardPage() {
                             <p style={{ fontSize: '12px', color: 'var(--muted)' }}>Click any agent to configure or view its dashboard</p>
                         </div>
 
-                        <div style={{
-                            display: 'grid',
-                            gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                            gap: '1px',
-                            background: 'var(--border)',
-                            border: '1px solid var(--border)',
-                        }}>
-                            {projects.map((project) => (
+                        {/* Loading State */}
+                        {loading && (
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '60px 20px',
+                                color: 'var(--muted)',
+                            }}>
+                                Loading your projects...
+                            </div>
+                        )}
+
+                        {/* Error State */}
+                        {error && !loading && (
+                            <div style={{
+                                textAlign: 'center',
+                                padding: '40px 20px',
+                                color: 'var(--error, #ff6b6b)',
+                                border: '1px solid var(--border)',
+                                background: 'var(--card)',
+                            }}>
+                                <p>{error}</p>
+                                <button
+                                    onClick={fetchProjects}
+                                    style={{
+                                        marginTop: '16px',
+                                        padding: '10px 24px',
+                                        background: 'var(--gold)',
+                                        color: 'var(--black)',
+                                        border: 'none',
+                                        cursor: 'pointer',
+                                        fontSize: '12px',
+                                        fontWeight: '600',
+                                        textTransform: 'uppercase',
+                                    }}
+                                >
+                                    Retry
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Projects Grid */}
+                        {!loading && !error && (
+                            <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                                gap: '1px',
+                                background: 'var(--border)',
+                                border: '1px solid var(--border)',
+                            }}>
+                                {projects.map((project) => {
+                                    const servicesCount = project.services?.length || 0;
+                                    const icon = getProjectIcon(project.businessName);
+                                    const scheduleDisplay = getScheduleDisplay(project.schedule);
+
+                                    return (
+                                        <div
+                                            key={project.id}
+                                            style={{
+                                                background: 'var(--card)',
+                                                padding: '28px 30px',
+                                                cursor: 'pointer',
+                                                transition: 'background 0.25s',
+                                                position: 'relative',
+                                            }}
+                                            onClick={() => router.push(`/wizard?edit=${project.id}`)}
+                                        >
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                                <div style={{
+                                                    width: '44px',
+                                                    height: '44px',
+                                                    background: 'rgba(201, 168, 76, 0.08)',
+                                                    border: '1px solid var(--gold-dk)',
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    justifyContent: 'center',
+                                                    fontSize: '18px',
+                                                }}>{icon}</div>
+                                                <div style={{
+                                                    display: 'flex',
+                                                    alignItems: 'center',
+                                                    gap: '6px',
+                                                    fontFamily: 'var(--font-mono)',
+                                                    fontSize: '10px',
+                                                    letterSpacing: '0.1em',
+                                                    textTransform: 'uppercase',
+                                                    color: '#52b788',
+                                                }}>
+                                                    <div style={{
+                                                        width: '6px',
+                                                        height: '6px',
+                                                        borderRadius: '50%',
+                                                        background: '#52b788',
+                                                    }}></div>
+                                                    active
+                                                </div>
+                                            </div>
+
+                                            <div style={{
+                                                fontFamily: 'var(--font-display)',
+                                                fontSize: '20px',
+                                                fontWeight: '400',
+                                                color: 'var(--white)',
+                                                marginBottom: '4px',
+                                            }}>{project.agentName}</div>
+                                            <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px' }}>
+                                                {project.businessName || 'No business name'}
+                                            </div>
+
+                                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
+                                                <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
+                                                    {project.language || 'English'}
+                                                </span>
+                                                <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
+                                                    {servicesCount} service{servicesCount !== 1 ? 's' : ''}
+                                                </span>
+                                                <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
+                                                    {scheduleDisplay}
+                                                </span>
+                                            </div>
+
+                                            <div style={{
+                                                display: 'flex',
+                                                justifyContent: 'space-between',
+                                                paddingTop: '16px',
+                                                borderTop: '1px solid var(--border)',
+                                            }}>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{
+                                                        fontFamily: 'var(--font-display)',
+                                                        fontSize: '22px',
+                                                        color: 'var(--white)',
+                                                        fontWeight: '300',
+                                                    }}>0</div>
+                                                    <div style={{
+                                                        fontSize: '9px',
+                                                        letterSpacing: '0.12em',
+                                                        textTransform: 'uppercase',
+                                                        color: 'var(--muted)',
+                                                    }}>Bookings</div>
+                                                </div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{
+                                                        fontFamily: 'var(--font-display)',
+                                                        fontSize: '22px',
+                                                        color: 'var(--white)',
+                                                        fontWeight: '300',
+                                                    }}>0</div>
+                                                    <div style={{
+                                                        fontSize: '9px',
+                                                        letterSpacing: '0.12em',
+                                                        textTransform: 'uppercase',
+                                                        color: 'var(--muted)',
+                                                    }}>Calls</div>
+                                                </div>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{
+                                                        fontFamily: 'var(--font-display)',
+                                                        fontSize: '22px',
+                                                        color: 'var(--white)',
+                                                        fontWeight: '300',
+                                                    }}>--</div>
+                                                    <div style={{
+                                                        fontSize: '9px',
+                                                        letterSpacing: '0.12em',
+                                                        textTransform: 'uppercase',
+                                                        color: 'var(--muted)',
+                                                    }}>Rate</div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+
+                                {/* New Project Card */}
                                 <div
-                                    key={project.id}
+                                    onClick={() => setModalOpen(true)}
                                     style={{
                                         background: 'var(--card)',
-                                        padding: '28px 30px',
-                                        cursor: 'pointer',
-                                        transition: 'background 0.25s',
-                                        position: 'relative',
-                                    }}
-                                    onClick={() => router.push(`/wizard?edit=${project.id}`)}
-                                >
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
-                                        <div style={{
-                                            width: '44px',
-                                            height: '44px',
-                                            background: 'rgba(201, 168, 76, 0.08)',
-                                            border: '1px solid var(--gold-dk)',
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            justifyContent: 'center',
-                                            fontSize: '18px',
-                                        }}>{project.icon}</div>
-                                        <div style={{
-                                            display: 'flex',
-                                            alignItems: 'center',
-                                            gap: '6px',
-                                            fontFamily: 'var(--font-mono)',
-                                            fontSize: '10px',
-                                            letterSpacing: '0.1em',
-                                            textTransform: 'uppercase',
-                                            color: project.status === 'live' ? '#52b788' : 'var(--muted)',
-                                        }}>
-                                            <div style={{
-                                                width: '6px',
-                                                height: '6px',
-                                                borderRadius: '50%',
-                                                background: project.status === 'live' ? '#52b788' : 'var(--muted)',
-                                            }}></div>
-                                            {project.status}
-                                        </div>
-                                    </div>
-
-                                    <div style={{
-                                        fontFamily: 'var(--font-display)',
-                                        fontSize: '20px',
-                                        fontWeight: '400',
-                                        color: 'var(--white)',
-                                        marginBottom: '4px',
-                                    }}>{project.name}</div>
-                                    <div style={{ fontSize: '12px', color: 'var(--muted)', marginBottom: '16px' }}>
-                                        {project.business}
-                                    </div>
-
-                                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap', marginBottom: '20px' }}>
-                                        <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
-                                            {project.language}
-                                        </span>
-                                        <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
-                                            {project.servicesCount} services
-                                        </span>
-                                        <span style={{ padding: '3px 10px', border: '1px solid var(--border)', fontSize: '11px', color: 'var(--muted)' }}>
-                                            {project.schedule}
-                                        </span>
-                                    </div>
-
-                                    <div style={{
+                                        border: '1px dashed var(--border)',
                                         display: 'flex',
-                                        justifyContent: 'space-between',
-                                        paddingTop: '16px',
-                                        borderTop: '1px solid var(--border)',
-                                    }}>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <div style={{
-                                                fontFamily: 'var(--font-display)',
-                                                fontSize: '22px',
-                                                color: 'var(--white)',
-                                                fontWeight: '300',
-                                            }}>{project.bookings}</div>
-                                            <div style={{
-                                                fontSize: '9px',
-                                                letterSpacing: '0.12em',
-                                                textTransform: 'uppercase',
-                                                color: 'var(--muted)',
-                                            }}>Bookings</div>
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <div style={{
-                                                fontFamily: 'var(--font-display)',
-                                                fontSize: '22px',
-                                                color: 'var(--white)',
-                                                fontWeight: '300',
-                                            }}>{project.calls}</div>
-                                            <div style={{
-                                                fontSize: '9px',
-                                                letterSpacing: '0.12em',
-                                                textTransform: 'uppercase',
-                                                color: 'var(--muted)',
-                                            }}>Calls</div>
-                                        </div>
-                                        <div style={{ textAlign: 'center' }}>
-                                            <div style={{
-                                                fontFamily: 'var(--font-display)',
-                                                fontSize: '22px',
-                                                color: 'var(--white)',
-                                                fontWeight: '300',
-                                            }}>{project.rate}</div>
-                                            <div style={{
-                                                fontSize: '9px',
-                                                letterSpacing: '0.12em',
-                                                textTransform: 'uppercase',
-                                                color: 'var(--muted)',
-                                            }}>Rate</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-
-                            {/* New Project Card */}
-                            <div
-                                onClick={() => setModalOpen(true)}
-                                style={{
-                                    background: 'var(--card)',
-                                    border: '1px dashed var(--border)',
-                                    display: 'flex',
-                                    flexDirection: 'column',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    gap: '14px',
-                                    padding: '48px 30px',
-                                    cursor: 'pointer',
-                                    transition: 'all 0.3s',
-                                    textAlign: 'center',
-                                    minHeight: '220px',
-                                }}
-                            >
-                                <div style={{
-                                    width: '48px',
-                                    height: '48px',
-                                    border: '1px solid var(--border)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '22px',
-                                    color: 'var(--muted)',
-                                }}>+</div>
-                                <div>
-                                    <span style={{
-                                        fontFamily: 'var(--font-mono)',
-                                        fontSize: '11px',
-                                        letterSpacing: '0.12em',
-                                        textTransform: 'uppercase',
+                                        flexDirection: 'column',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        gap: '14px',
+                                        padding: '48px 30px',
+                                        cursor: 'pointer',
+                                        transition: 'all 0.3s',
+                                        textAlign: 'center',
+                                        minHeight: '220px',
+                                    }}
+                                >
+                                    <div style={{
+                                        width: '48px',
+                                        height: '48px',
+                                        border: '1px solid var(--border)',
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        fontSize: '22px',
                                         color: 'var(--muted)',
-                                    }}>New Agent</span>
-                                    <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>
-                                        Set up a new AI voice booking agent
-                                    </p>
+                                    }}>+</div>
+                                    <div>
+                                        <span style={{
+                                            fontFamily: 'var(--font-mono)',
+                                            fontSize: '11px',
+                                            letterSpacing: '0.12em',
+                                            textTransform: 'uppercase',
+                                            color: 'var(--muted)',
+                                        }}>New Agent</span>
+                                        <p style={{ fontSize: '13px', color: 'var(--muted)', marginTop: '6px' }}>
+                                            Set up a new AI voice booking agent
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-                        </div>
+                        )}
                     </div>
                 </main>
             </div>
