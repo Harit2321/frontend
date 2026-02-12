@@ -69,13 +69,28 @@ export async function createCalComEventType(service: Service): Promise<{ success
             ],
             // Make it bookable
             hidden: false,
-            // Add phone number as a required field
+            // Booking fields: Name (required), Phone (required), Email (optional)
             bookingFields: [
+                {
+                    name: 'name',
+                    type: 'name',
+                    label: 'Full Name',
+                    placeholder: 'Enter your name',
+                    required: true
+                },
                 {
                     name: 'attendeePhoneNumber',
                     type: 'phone',
-                    required: true,
-                    label: 'Phone Number'
+                    label: 'Phone Number',
+                    placeholder: '+1 (555) 123-4567',
+                    required: true
+                },
+                {
+                    name: 'email',
+                    type: 'email',
+                    label: 'Email Address',
+                    placeholder: 'you@example.com',
+                    required: false
                 }
             ]
         };
@@ -137,7 +152,38 @@ async function createCalComEventTypeV1(service: Service): Promise<{ success: boo
                 title: service.name,
                 slug: slug,
                 length: service.duration,
-                description: service.price ? `Price: $${service.price}` : undefined
+                description: service.price ? `Price: $${service.price}` : undefined,
+                locations: [
+                    {
+                        type: 'phone',
+                        phone: ''
+                    }
+                ],
+                hidden: false,
+                // Booking fields: Name (required), Phone (required), Email (optional)
+                bookingFields: [
+                    {
+                        name: 'name',
+                        type: 'name',
+                        label: 'Full Name',
+                        placeholder: 'Enter your name',
+                        required: true
+                    },
+                    {
+                        name: 'phone',
+                        type: 'phone',
+                        label: 'Phone Number',
+                        placeholder: '+1 (555) 123-4567',
+                        required: true
+                    },
+                    {
+                        name: 'email',
+                        type: 'email',
+                        label: 'Email Address',
+                        placeholder: 'you@example.com',
+                        required: false
+                    }
+                ]
             })
         });
 
@@ -189,7 +235,8 @@ function timeToMinutes(time: string): number {
 }
 
 /**
- * Set up availability schedule in Cal.com using /v2/schedules
+ * Set up availability schedule in Cal.com using V1 /schedules API
+ * Note: V2 /schedules endpoint returns 404, so we use V1 API
  */
 export async function createCalComSchedule(schedule: DaySchedule[]): Promise<{ success: boolean; scheduleId?: number; error?: string }> {
     try {
@@ -207,12 +254,12 @@ export async function createCalComSchedule(schedule: DaySchedule[]): Promise<{ s
             const dayNum = getDayNumber(day.day);
             if (dayNum === -1) continue;
 
-            // Cal.com expects time in "HH:mm:ss" format
+            // Cal.com V1 expects time in "HH:mm:00" format
             const startTime = `${day.start}:00`;
             const endTime = `${day.end}:00`;
 
             availabilityBlocks.push({
-                daysOfWeek: [dayNum],
+                days: [dayNum],
                 startTime: startTime,
                 endTime: endTime
             });
@@ -223,80 +270,37 @@ export async function createCalComSchedule(schedule: DaySchedule[]): Promise<{ s
             return { success: true }; // Not an error, just no schedule
         }
 
-        // Correct Cal.com V2 API payload format
+        // Use V1 /schedules endpoint which supports POST
         const payload = {
-            name: `Project Schedule ${Date.now()}`,
+            name: `Business Hours ${Date.now()}`,
             timeZone: 'Asia/Kolkata',
             availability: availabilityBlocks
         };
 
-        console.log('📅 Creating Cal.com schedule via /v2/schedules:', JSON.stringify(payload, null, 2));
+        console.log('📅 Creating Cal.com schedule via V1 /schedules:', JSON.stringify(payload, null, 2));
 
-        // Call Cal.com V2 Schedules API
-        const response = await fetch(`${CAL_COM_API_URL}/schedules`, {
+        // Call Cal.com V1 Schedules API
+        const response = await fetch(`https://api.cal.com/v1/schedules?apiKey=${CAL_COM_API_KEY}`, {
             method: 'POST',
             headers: {
-                'Authorization': `Bearer ${CAL_COM_API_KEY}`,
-                'Content-Type': 'application/json',
-                'cal-api-version': '2024-08-13'
+                'Content-Type': 'application/json'
             },
             body: JSON.stringify(payload)
         });
 
         const responseText = await response.text();
-        console.log(`📅 Cal.com /v2/schedules response [${response.status}]:`, responseText);
+        console.log(`📅 Cal.com V1 /schedules response [${response.status}]:`, responseText);
 
         if (!response.ok) {
-            console.warn('⚠️  V2 Schedule creation failed, trying alternative format...');
-
-            // Try alternative format with "schedule" array
-            const altPayload = {
-                name: `Business Hours ${Date.now()}`,
-                timeZone: 'Asia/Kolkata',
-                schedule: schedule
-                    .filter(d => d.enabled)
-                    .map(d => ({
-                        days: [getDayNumber(d.day)],
-                        startTime: d.start,
-                        endTime: d.end
-                    }))
-            };
-
-            console.log('📅 Trying alternative format:', JSON.stringify(altPayload, null, 2));
-
-            const altResponse = await fetch(`${CAL_COM_API_URL}/schedules`, {
-                method: 'POST',
-                headers: {
-                    'Authorization': `Bearer ${CAL_COM_API_KEY}`,
-                    'Content-Type': 'application/json',
-                    'cal-api-version': '2024-08-13'
-                },
-                body: JSON.stringify(altPayload)
-            });
-
-            const altText = await altResponse.text();
-            console.log(`📅 Alternative format response [${altResponse.status}]:`, altText);
-
-            if (!altResponse.ok) {
-                console.error('❌ Both schedule formats failed');
-                return {
-                    success: false,
-                    error: `Schedule API failed: ${response.status} - ${responseText}, Alt: ${altResponse.status} - ${altText}`
-                };
-            }
-
-            const altData = JSON.parse(altText);
-            const scheduleId = altData.data?.id || altData.id;
-            console.log('✅ Cal.com schedule created with alternative format! ID:', scheduleId);
-
+            console.error('❌ V1 Schedule creation failed');
             return {
-                success: true,
-                scheduleId: scheduleId
+                success: false,
+                error: `Schedules API failed: ${response.status} - ${responseText}`
             };
         }
 
         const data = JSON.parse(responseText);
-        const scheduleId = data.data?.id || data.id;
+        const scheduleId = data.schedule?.id || data.id;
 
         console.log('✅ Cal.com schedule created successfully! ID:', scheduleId);
 
