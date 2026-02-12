@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 
@@ -25,6 +25,8 @@ export default function WizardPage() {
     const [showSuccess, setShowSuccess] = useState(false);
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [playingVoice, setPlayingVoice] = useState<string | null>(null);
+    const audioRef = useRef<HTMLAudioElement | null>(null);
 
     // Form data
     const [agentName, setAgentName] = useState(searchParams.get('name') || '');
@@ -52,11 +54,51 @@ export default function WizardPage() {
     ]);
 
     const voices = [
-        { id: 'aria', emoji: '👩', name: 'Aria', style: 'Warm · Professional' },
-        { id: 'nova', emoji: '👱‍♀️', name: 'Nova', style: 'Crisp · Confident' },
-        { id: 'james', emoji: '👨', name: 'James', style: 'Deep · Trustworthy' },
-        { id: 'kai', emoji: '🧑', name: 'Kai', style: 'Energetic · Friendly' },
+        { id: '6303e5fb-a0a7-48f9-bb1a-dd42c216dc5d', emoji: '👩', name: 'Sagar', style: 'Warm · Professional', audioFile: '/voices/Sagar.wav' },
+        { id: 'fd2ada67-c2d9-4afe-b474-6386b87d8fc3', emoji: '👱‍♀️', name: 'Ishan', style: 'Crisp · Confident', audioFile: '/voices/Ishan.wav' },
+        { id: 'faf0731e-dfb9-4cfc-8119-259a79b27e12', emoji: '👨', name: 'Riya', style: 'Deep · Trustworthy', audioFile: '/voices/Riya.wav' },
+        { id: '95d51f79-c397-46f9-b49a-23763d3eaa2d', emoji: '🧑', name: 'Jia', style: 'Energetic · Friendly', audioFile: '/voices/Jia.wav' },
     ];
+
+    const playVoice = (voiceId: string, audioFile: string) => {
+        if (playingVoice === voiceId) {
+            audioRef.current?.pause();
+            audioRef.current = null;
+            setPlayingVoice(null);
+            return;
+        }
+
+        if (audioRef.current) {
+            audioRef.current.pause();
+            audioRef.current = null;
+        }
+
+        const audio = new Audio(audioFile);
+        audioRef.current = audio;
+        setPlayingVoice(voiceId);
+
+        audio.play();
+
+        audio.onended = () => {
+            setPlayingVoice(null);
+            audioRef.current = null;
+        };
+
+        audio.onerror = () => {
+            console.error('Error playing audio file:', audioFile);
+            setPlayingVoice(null);
+            audioRef.current = null;
+        };
+    };
+
+    useEffect(() => {
+        return () => {
+            if (audioRef.current) {
+                audioRef.current.pause();
+                audioRef.current = null;
+            }
+        };
+    }, []);
 
     const addService = () => {
         setServices([...services, { name: '', duration: '30', price: '' }]);
@@ -280,6 +322,58 @@ export default function WizardPage() {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        .play-button {
+            position: absolute;
+            top: 8px;
+            right: 8px;
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.25s;
+            z-index: 2;
+            }
+            .play-button:hover {
+            background: rgba(0, 0, 0, 0.9);
+            border-color: var(--gold);
+            transform: scale(1.05);
+            }
+            .play-button.playing {
+            background: var(--gold-dk);
+            border-color: var(--gold);
+            }
+            .play-icon {
+            width: 0;
+            height: 0;
+            border-left: 8px solid var(--white);
+            border-top: 5px solid transparent;
+            border-bottom: 5px solid transparent;
+            margin-left: 2px;
+            }
+            .pause-icon {
+            width: 10px;
+            height: 12px;
+            position: relative;
+            }
+            .pause-icon::before,
+            .pause-icon::after {
+            content: '';
+            position: absolute;
+            width: 3px;
+            height: 12px;
+            background: var(--black);
+            }
+            .pause-icon::before {
+            left: 0;
+            }
+            .pause-icon::after {
+            right: 0;
+            }
       `}</style>
 
             {!showSuccess ? (
@@ -516,11 +610,25 @@ export default function WizardPage() {
                                                         transition: 'all 0.25s',
                                                     }}
                                                 >
+                                                    <div
+                                                        className={`play-button ${playingVoice === voice.id ? 'playing' : ''}`}
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            playVoice(voice.id, voice.audioFile);
+                                                        }}
+                                                    >
+                                                        {playingVoice === voice.id ? (
+                                                            <div className="pause-icon"></div>
+                                                        ) : (
+                                                            <div className="play-icon"></div>
+                                                        )}
+                                                    </div>
+
                                                     {selectedVoice === voice.id && (
                                                         <div style={{
                                                             position: 'absolute',
                                                             top: '8px',
-                                                            right: '10px',
+                                                            left: '10px',
                                                             fontSize: '11px',
                                                             color: 'var(--gold)',
                                                         }}>✓</div>

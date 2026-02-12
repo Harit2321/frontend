@@ -62,8 +62,88 @@ async function testCalComConnection() {
         console.error(`   ❌ Error: ${error.message}\n`);
     }
 
-    // Test 3: Create a test event type
-    console.log('3️⃣ Creating test event type...');
+    // Test 3: Create a test schedule
+    console.log('3️⃣ Creating test schedule...');
+    try {
+        // Test different payload formats
+        const payloadFormats = [
+            {
+                name: 'Format 1: availability array',
+                payload: {
+                    name: `Test Schedule ${Date.now()}`,
+                    timeZone: 'Asia/Kolkata',
+                    isDefault: false,
+                    availability: [
+                        {
+                            days: [1, 2, 3, 4, 5],
+                            startTime: '09:00:00',
+                            endTime: '17:00:00'
+                        }
+                    ]
+                }
+            },
+            {
+                name: 'Format 2: schedule array',
+                payload: {
+                    name: `Test Schedule ${Date.now()}`,
+                    timeZone: 'Asia/Kolkata',
+                    isDefault: false,
+                    schedule: [
+                        {
+                            days: [1, 2, 3, 4, 5],
+                            startTime: '09:00',
+                            endTime: '17:00'
+                        }
+                    ]
+                }
+            },
+            {
+                name: 'Format 3: availability without isDefault',
+                payload: {
+                    name: `Test Schedule ${Date.now()}`,
+                    timeZone: 'Asia/Kolkata',
+                    availability: [
+                        {
+                            days: [1, 2, 3, 4, 5],
+                            startTime: '09:00:00',
+                            endTime: '17:00:00'
+                        }
+                    ]
+                }
+            }
+        ];
+
+        for (const format of payloadFormats) {
+            console.log(`\n   Testing ${format.name}...`);
+            console.log(`   Payload: ${JSON.stringify(format.payload, null, 2)}`);
+
+            const response = await fetch(`${CAL_COM_API_URL}/schedules`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${CAL_COM_API_KEY}`,
+                    'Content-Type': 'application/json',
+                    'cal-api-version': '2024-08-13'
+                },
+                body: JSON.stringify(format.payload)
+            });
+
+            const responseText = await response.text();
+            console.log(`   Status: ${response.status}`);
+            console.log(`   Response: ${responseText}`);
+
+            if (response.ok) {
+                console.log(`   ✅ ${format.name} works!\n`);
+                break; // Stop if we found a working format
+            } else {
+                console.log(`   ❌ ${format.name} failed\n`);
+            }
+        }
+    } catch (error) {
+        console.error(`   ❌ Error: ${error.message}\n`);
+    }
+
+    // Test 4: Create a test event type
+    console.log('4️⃣ Creating test event type...');
     try {
         const testService = {
             title: 'Test Service - ' + Date.now(),
