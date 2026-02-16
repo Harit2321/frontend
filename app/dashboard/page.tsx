@@ -421,7 +421,7 @@ export default function DashboardPage() {
                                                 transition: 'background 0.25s',
                                                 position: 'relative',
                                             }}
-                                            onClick={() => router.push(`/wizard?edit=${project.id}`)}
+                                            onClick={() => router.push(`/agents/${project.id}`)}
                                         >
                                             <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
                                                 <div style={{
