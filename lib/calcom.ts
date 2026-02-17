@@ -57,43 +57,33 @@ export async function createCalComEventType(service: Service): Promise<{ success
 
         const payload = {
             title: service.name,
-            slug: slug,
+            slug,
             length: service.duration,
             description: service.price ? `Price: $${service.price}` : undefined,
-            // Set default location as phone call
+
+            // Phone call location (this auto-creates phone field)
             locations: [
                 {
-                    type: 'phone',
-                    phone: ''
+                    type: 'phone'
                 }
             ],
-            // Make it bookable
-            hidden: false,
-            // Booking fields: Name (required), Phone (required), Email (optional)
+
             bookingFields: [
                 {
                     name: 'name',
                     type: 'name',
                     label: 'Full Name',
-                    placeholder: 'Enter your name',
-                    required: true
-                },
-                {
-                    name: 'attendeePhoneNumber',
-                    type: 'phone',
-                    label: 'Phone Number',
-                    placeholder: '+1 (555) 123-4567',
                     required: true
                 },
                 {
                     name: 'email',
                     type: 'email',
-                    label: 'Email Address',
-                    placeholder: 'you@example.com',
+                    label: 'Email address',
                     required: false
                 }
             ]
         };
+
 
         console.log('Creating Cal.com event type:', payload);
 
@@ -165,25 +155,15 @@ async function createCalComEventTypeV1(service: Service): Promise<{ success: boo
                     {
                         name: 'name',
                         type: 'name',
-                        label: 'Full Name',
-                        placeholder: 'Enter your name',
-                        required: true
-                    },
-                    {
-                        name: 'phone',
-                        type: 'phone',
-                        label: 'Phone Number',
-                        placeholder: '+1 (555) 123-4567',
                         required: true
                     },
                     {
                         name: 'email',
                         type: 'email',
-                        label: 'Email Address',
-                        placeholder: 'you@example.com',
                         required: false
                     }
                 ]
+
             })
         });
 
