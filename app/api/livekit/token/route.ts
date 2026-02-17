@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
             }),
         });
 
-        // Grant permissions
+        // Grant permissions    
         token.addGrant({
             room: roomName,
             roomJoin: true,
