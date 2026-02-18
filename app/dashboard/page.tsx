@@ -423,7 +423,63 @@ export default function DashboardPage() {
                                             }}
                                             onClick={() => router.push(`/agents/${project.id}`)}
                                         >
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px' }}>
+                                            <div style={{ position: 'absolute', top: '15px', right: '15px', display: 'flex', gap: '8px' }}>
+                                                <button
+                                                    onClick={(e) => {
+                                                        e.stopPropagation();
+                                                        // Navigate to wizard with project data to edit (assuming wizard supports edit mode or pre-fill)
+                                                        // For now, simpler to just edit via wizard query params or dedicated edit page
+                                                        // Since we don't have dedicated edit page, we might just re-use wizard with param?
+                                                        // Or maybe just link to agent details page which should have edit?
+                                                        // User asked for "Edit" button
+                                                        router.push(`/agents/${project.id}?edit=true`);
+                                                    }}
+                                                    style={{
+                                                        background: 'transparent',
+                                                        border: '1px solid var(--border)',
+                                                        color: 'var(--muted)',
+                                                        padding: '4px 8px',
+                                                        fontSize: '10px',
+                                                        cursor: 'pointer',
+                                                        borderRadius: '4px',
+                                                    }}
+                                                >
+                                                    EDIT
+                                                </button>
+                                                <button
+                                                    onClick={async (e) => {
+                                                        e.stopPropagation();
+                                                        if (confirm('Are you sure you want to delete this agent? This action cannot be undone.')) {
+                                                            try {
+                                                                const response = await fetch(`/api/projects/${project.id}`, {
+                                                                    method: 'DELETE',
+                                                                });
+                                                                if (response.ok) {
+                                                                    fetchProjects(); // Refresh list
+                                                                } else {
+                                                                    alert('Failed to delete project');
+                                                                }
+                                                            } catch (err) {
+                                                                console.error('Error deleting project:', err);
+                                                                alert('Error deleting project');
+                                                            }
+                                                        }
+                                                    }}
+                                                    style={{
+                                                        background: 'rgba(255, 80, 80, 0.1)',
+                                                        border: '1px solid rgba(255, 80, 80, 0.3)',
+                                                        color: '#ff8080',
+                                                        padding: '4px 8px',
+                                                        fontSize: '10px',
+                                                        cursor: 'pointer',
+                                                        borderRadius: '4px',
+                                                    }}
+                                                >
+                                                    DELETE
+                                                </button>
+                                            </div>
+
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '16px', marginTop: '10px' }}>
                                                 <div style={{
                                                     width: '44px',
                                                     height: '44px',

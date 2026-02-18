@@ -127,9 +127,48 @@ export default function WizardPage() {
     };
 
     const nextStep = () => {
+        setError(null);
+
+        // Validation based on step
+        if (currentStep === 1) {
+            if (!agentName.trim()) {
+                setError('Please provide an Agent Name.');
+                return;
+            }
+            if (!greeting.trim()) {
+                setError('Please provide an Opening Greeting.');
+                return;
+            }
+        }
+
+        if (currentStep === 2) {
+            if (!businessName.trim()) {
+                setError('Please provide a Business Name.');
+                return;
+            }
+            if (!industry) {
+                setError('Please select an Industry.');
+                return;
+            }
+            if (!phone.trim()) {
+                setError('Please provide a Phone Number.');
+                return;
+            }
+        }
+
+        if (currentStep === 3) {
+            const hasService = services.some(s => s.name.trim());
+            if (!hasService) {
+                setError('Please add at least one service offered.');
+                return;
+            }
+        }
+
         if (currentStep < 5) {
             setIsGoingBack(false);
             setCurrentStep(currentStep + 1);
+            // Clear error when successfully moving to next step
+            setError(null);
         }
     };
 
@@ -137,6 +176,7 @@ export default function WizardPage() {
         if (currentStep > 1) {
             setIsGoingBack(true);
             setCurrentStep(currentStep - 1);
+            setError(null);
         }
     };
 

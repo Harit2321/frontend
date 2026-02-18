@@ -1,15 +1,19 @@
 'use client';
 
 import { use, useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { LiveKitRoom, RoomAudioRenderer, ControlBar } from '@livekit/components-react';
+import { LiveKitRoom, RoomAudioRenderer, ControlBar, DisconnectButton, TrackToggle, useConnectionState } from '@livekit/components-react';
+import { Track, ConnectionState } from 'livekit-client';
 
 interface Project {
     id: string;
     agentName: string;
     businessName?: string;
+    industry?: string;
     language: string;
+    greeting?: string;
+    voiceId?: string;
     services?: any[];
     schedule?: any;
     createdAt: string;
@@ -22,9 +26,23 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
     const projectId = unwrappedParams.projectId;
 
     const router = useRouter();
+    const searchParams = useSearchParams();
+    const isEditMode = searchParams.get('edit') === 'true';
+
     const [project, setProject] = useState<Project | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
+
+    // Edit Form State
+    const [editFormData, setEditFormData] = useState({
+        agentName: '',
+        businessName: '',
+        industry: '',
+        language: 'English (US)',
+        greeting: '',
+        voiceId: '',
+    });
+    const [updating, setUpdating] = useState(false);
 
     // LiveKit token state
     const [tokenLoading, setTokenLoading] = useState(false);
@@ -36,6 +54,19 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
     useEffect(() => {
         fetchProject();
     }, [projectId]);
+
+    useEffect(() => {
+        if (project) {
+            setEditFormData({
+                agentName: project.agentName || '',
+                businessName: project.businessName || '',
+                industry: project.industry || '',
+                language: project.language || 'English (US)',
+                greeting: project.greeting || '',
+                voiceId: project.voiceId || '',
+            });
+        }
+    }, [project]);
 
     const fetchProject = async () => {
         try {
@@ -60,6 +91,33 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
             setError(err.message || 'Failed to load project');
         } finally {
             setLoading(false);
+        }
+    };
+
+    const handleUpdate = async () => {
+        try {
+            setUpdating(true);
+            const response = await fetch(`/api/projects/${projectId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify(editFormData),
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to update project');
+            }
+
+            const data = await response.json();
+            setProject(data.data);
+            router.push(`/agents/${projectId}`); // Exit edit mode
+            alert('Agent updated successfully!');
+        } catch (err: any) {
+            console.error('Error updating project:', err);
+            alert('Failed to update project: ' + err.message);
+        } finally {
+            setUpdating(false);
         }
     };
 
@@ -122,97 +180,258 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
         console.log('🔌 Disconnected from LiveKit room');
     };
 
+    if (isEditMode) {
+        return (
+            <div style={{ padding: '80px 40px', minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                <div className="glass-container" style={{ width: '100%', maxWidth: '800px' }}>
+                    <div style={{ marginBottom: '40px', textAlign: 'center' }}>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '42px', marginBottom: '8px', color: 'var(--white)' }}>Edit Agent Details</h1>
+                        <p style={{ color: 'var(--muted)', fontSize: '14px', letterSpacing: '0.05em' }}>UPDATE YOUR AGENT'S IDENTITY AND PREFERENCES</p>
+                    </div>
+
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px' }}>
+                        <div className="form-group">
+                            <label className="form-label">Agent Name</label>
+                            <input
+                                type="text"
+                                value={editFormData.agentName}
+                                onChange={(e) => setEditFormData({ ...editFormData, agentName: e.target.value })}
+                                className="form-input"
+                                placeholder="Name your agent"
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Business Name</label>
+                            <input
+                                type="text"
+                                value={editFormData.businessName}
+                                onChange={(e) => setEditFormData({ ...editFormData, businessName: e.target.value })}
+                                className="form-input"
+                                placeholder="Your business name"
+                            />
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Industry</label>
+                            <select
+                                value={editFormData.industry}
+                                onChange={(e) => setEditFormData({ ...editFormData, industry: e.target.value })}
+                                className="form-input"
+                            >
+                                <option value="">Select industry...</option>
+                                <option>Salon & Barbershop</option>
+                                <option>Medical Clinic</option>
+                                <option>Dental Office</option>
+                                <option>Yoga Studio</option>
+                                <option>Law Firm</option>
+                                <option>Veterinary</option>
+                                <option>Gym & Fitness</option>
+                                <option>Spa & Wellness</option>
+                                <option>Photography</option>
+                                <option>Other</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group">
+                            <label className="form-label">Language</label>
+                            <select
+                                value={editFormData.language}
+                                onChange={(e) => setEditFormData({ ...editFormData, language: e.target.value })}
+                                className="form-input"
+                            >
+                                <option>English (US)</option>
+                                <option>English (UK)</option>
+                                <option>Hindi</option>
+                                <option>Spanish</option>
+                                <option>French</option>
+                                <option>Arabic</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label className="form-label">Voice Persona</label>
+                            <select
+                                value={editFormData.voiceId}
+                                onChange={(e) => setEditFormData({ ...editFormData, voiceId: e.target.value })}
+                                className="form-input"
+                            >
+                                <option value="">Select a voice...</option>
+                                <option value="6303e5fb-a0a7-48f9-bb1a-dd42c216dc5d">Sagar (Warm · Professional)</option>
+                                <option value="fd2ada67-c2d9-4afe-b474-6386b87d8fc3">Ishan (Crisp · Confident)</option>
+                                <option value="faf0731e-dfb9-4cfc-8119-259a79b27e12">Riya (Deep · Trustworthy)</option>
+                                <option value="95d51f79-c397-46f9-b49a-23763d3eaa2d">Jia (Energetic · Friendly)</option>
+                            </select>
+                        </div>
+
+                        <div className="form-group" style={{ gridColumn: '1 / -1' }}>
+                            <label className="form-label">Greeting</label>
+                            <textarea
+                                value={editFormData.greeting}
+                                onChange={(e) => setEditFormData({ ...editFormData, greeting: e.target.value })}
+                                className="form-input"
+                                style={{ minHeight: '120px', resize: 'vertical' }}
+                                placeholder="How should your agent greet callers?"
+                            />
+                        </div>
+
+                        <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '16px', marginTop: '16px' }}>
+                            <button
+                                onClick={handleUpdate}
+                                disabled={updating}
+                                className="btn btn-primary btn-full"
+                            >
+                                {updating ? 'Saving Changes...' : 'Save Agent Details'}
+                            </button>
+                            <button
+                                onClick={() => router.push(`/agents/${projectId}`)}
+                                className="btn btn-secondary btn-full"
+                            >
+                                Cancel
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
     return (
         <>
             <style jsx global>{`
-                .sidebar {
-                    width: 240px;
-                    flex-shrink: 0;
-                    background: var(--surface);
-                    border-right: 1px solid var(--border);
-                    display: flex;
-                    flex-direction: column;
-                    padding: 28px 0;
-                    position: fixed;
-                    top: 0;
-                    left: 0;
-                    height: 100vh;
-                    z-index: 50;
+            .sidebar {
+                width: 240px;
+                flex-shrink: 0;
+                background: var(--surface);
+                border-right: 1px solid var(--border);
+                display: flex;
+                flex-direction: column;
+                padding: 28px 0;
+                position: fixed;
+                top: 0;
+                left: 0;
+                height: 100vh;
+                z-index: 50;
+            }
+            .sidebar-logo {
+                display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 0 24px 28px;
+            border-bottom: 1px solid var(--border);
+            font-family: var(--font-display);
+            font-size: 26px;
+            font-weight: 600;
+            letter-spacing: 0.1em;
+            color: var(--white);
+            text-decoration: none;
                 }
-                .sidebar-logo {
-                    display: flex;
-                    align-items: center;
-                    gap: 10px;
-                    padding: 0 24px 28px;
-                    border-bottom: 1px solid var(--border);
-                    font-family: var(--font-display);
-                    font-size: 26px;
-                    font-weight: 600;
-                    letter-spacing: 0.1em;
-                    color: var(--white);
-                    text-decoration: none;
+            .logo-dot {
+                width: 8px;
+            height: 8px;
+            background: var(--gold);
+            border-radius: 50%;
                 }
-                .logo-dot {
-                    width: 8px;
-                    height: 8px;
-                    background: var(--gold);
-                    border-radius: 50%;
+            .sidebar-nav {
+                padding: 20px 0;
+            flex: 1;
                 }
-                .sidebar-nav {
-                    padding: 20px 0;
-                    flex: 1;
+            .nav-section-label {
+                padding: 6px 24px 4px;
+            font-family: var(--font-mono);
+            font-size: 9px;
+            letter-spacing: 0.2em;
+            text-transform: uppercase;
+            color: var(--muted);
                 }
-                .nav-section-label {
-                    padding: 6px 24px 4px;
-                    font-family: var(--font-mono);
-                    font-size: 9px;
-                    letter-spacing: 0.2em;
-                    text-transform: uppercase;
-                    color: var(--muted);
+            .nav-item {
+                display: flex;
+            align-items: center;
+            gap: 11px;
+            padding: 10px 24px;
+            color: var(--muted);
+            font-size: 13px;
+            text-decoration: none;
+            letter-spacing: 0.02em;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 2px solid transparent;
                 }
-                .nav-item {
-                    display: flex;
-                    align-items: center;
-                    gap: 11px;
-                    padding: 10px 24px;
-                    color: var(--muted);
-                    font-size: 13px;
-                    text-decoration: none;
-                    letter-spacing: 0.02em;
-                    cursor: pointer;
-                    transition: all 0.2s;
-                    border-left: 2px solid transparent;
+            .nav-item:hover {
+                color: var(--text);
+            background: rgba(255, 255, 255, 0.02);
                 }
-                .nav-item:hover {
-                    color: var(--text);
-                    background: rgba(255, 255, 255, 0.02);
+            .nav-item.active {
+                color: var(--gold);
+            border-left-color: var(--gold);
+            background: rgba(201, 168, 76, 0.04);
                 }
-                .nav-item.active {
-                    color: var(--gold);
-                    border-left-color: var(--gold);
-                    background: rgba(201, 168, 76, 0.04);
+            .main-content {
+                flex: 1;
+            margin-left: 240px;
+            min-height: 100vh;
                 }
-                .main-content {
-                    flex: 1;
-                    margin-left: 240px;
-                    min-height: 100vh;
+            .topbar {
+                display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 20px 40px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(8, 8, 8, 0.8);
+            backdrop-filter: blur(12px);
+            position: sticky;
+            top: 0;
+            z-index: 40;
                 }
-                .topbar {
-                    display: flex;
-                    align-items: center;
-                    justify-content: space-between;
-                    padding: 20px 40px;
-                    border-bottom: 1px solid var(--border);
-                    background: rgba(8, 8, 8, 0.8);
-                    backdrop-filter: blur(12px);
-                    position: sticky;
-                    top: 0;
-                    z-index: 40;
+            .content-area {
+                padding: 40px;
                 }
-                .content-area {
-                    padding: 40px;
+
+            /* Audio Pulse Animation */
+            .audio-pulse {
+                width: 150px;
+            height: 150px;
+            background: rgba(201, 168, 76, 0.1);
+            border-radius: 50%;
+            position: relative;
+            animation: pulse 2s infinite ease-out;
+            }
+
+            .audio-pulse::before {
+                content: '';
+            position: absolute;
+            inset: -20px;
+            background: rgba(201, 168, 76, 0.05);
+            border-radius: 50%;
+            animation: pulse 2s infinite ease-out 0.5s;
+            }
+
+            .audio-pulse::after {
+                content: '';
+            position: absolute;
+            inset: -40px;
+            background: rgba(201, 168, 76, 0.02);
+            border-radius: 50%;
+            animation: pulse 2s infinite ease-out 1s;
+            }
+
+            @keyframes pulse {
+                0% {
+                    transform: scale(0.95);
+                    opacity: 0.5;
                 }
-            `}</style>
+                50% {
+                    transform: scale(1.05);
+                    opacity: 0.8;
+                }
+                100% {
+                    transform: scale(0.95);
+                    opacity: 0.5;
+                }
+            }
+
+
+            `}</style >
 
             <div style={{ display: 'flex', minHeight: '100vh' }}>
                 {/* Sidebar */}
@@ -222,7 +441,7 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
                     </Link>
                     <nav className="sidebar-nav">
                         <div className="nav-section-label">Workspace</div>
-                        <Link href="/dashboard" className="nav-item">
+                        <Link href="/dashboard" className="nav-item active">
                             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: '15px', height: '15px' }}>
                                 <rect x="3" y="3" width="7" height="7" rx="1" />
                                 <rect x="14" y="3" width="7" height="7" rx="1" />
@@ -231,13 +450,6 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
                             </svg>
                             Projects
                         </Link>
-                        <div className="nav-item active">
-                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" style={{ width: '15px', height: '15px' }}>
-                                <circle cx="12" cy="12" r="10" />
-                                <circle cx="12" cy="12" r="3" />
-                            </svg>
-                            Agent View
-                        </div>
                     </nav>
 
                     <div style={{ padding: '20px 24px', borderTop: '1px solid var(--border)' }}>
@@ -642,36 +854,102 @@ export default function AgentPage({ params }: { params: Promise<{ projectId: str
                                             token={livekitToken}
                                             serverUrl={livekitUrl}
                                             connect={true}
-                                            style={{
-                                                minHeight: '300px',
-                                                background: 'var(--black)',
-                                                borderRadius: '4px',
-                                            }}
+                                            data-lk-theme="default"
+                                            style={{ height: '500px', display: 'flex', flexDirection: 'column', position: 'relative', overflow: 'hidden', background: 'var(--black)', border: '1px solid var(--border)' }}
+                                            onDisconnected={handleDisconnect}
                                         >
-                                            <div style={{
-                                                padding: '32px',
-                                                textAlign: 'center',
-                                                color: 'var(--text)',
-                                            }}>
-                                                <div style={{
-                                                    fontSize: '14px',
-                                                    marginBottom: '16px',
-                                                }}>
-                                                    🎙️ Voice Agent Active
-                                                </div>
-                                                <div style={{
-                                                    fontSize: '12px',
-                                                    color: 'var(--muted)',
-                                                }}>
-                                                    You're now connected to {project?.agentName}
-                                                </div>
-                                            </div>
-
-                                            {/* LiveKit Audio Renderer */}
                                             <RoomAudioRenderer />
 
-                                            {/* LiveKit Control Bar */}
-                                            <ControlBar />
+                                            {/* Visualizer Background */}
+                                            <div style={{
+                                                position: 'absolute',
+                                                inset: 0,
+                                                display: 'flex',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                pointerEvents: 'none',
+                                            }}>
+                                                <div className="audio-pulse"></div>
+                                            </div>
+
+                                            <div style={{
+                                                position: 'relative',
+                                                zIndex: 10,
+                                                height: '100%',
+                                                display: 'flex',
+                                                flexDirection: 'column',
+                                                alignItems: 'center',
+                                                justifyContent: 'center',
+                                                gap: '32px',
+                                            }}>
+                                                <div style={{ textAlign: 'center' }}>
+                                                    <div style={{
+                                                        marginBottom: '16px',
+                                                        fontSize: '12px',
+                                                        textTransform: 'uppercase',
+                                                        letterSpacing: '0.2em',
+                                                        color: 'var(--gold)',
+                                                        fontFamily: 'var(--font-mono)'
+                                                    }}>
+                                                        Live Connection
+                                                    </div>
+
+                                                    <div style={{
+                                                        fontSize: '32px',
+                                                        color: 'var(--white)',
+                                                        fontFamily: 'var(--font-display)',
+                                                        fontWeight: '400',
+                                                        marginBottom: '8px'
+                                                    }}>
+                                                        {project.agentName}
+                                                    </div>
+
+                                                    <div style={{ fontSize: '14px', color: 'var(--muted)' }}>
+                                                        Voice Agent Active
+                                                    </div>
+                                                </div>
+
+                                                <div style={{ display: 'flex', gap: '16px', alignItems: 'center' }}>
+                                                    <TrackToggle
+                                                        source={Track.Source.Microphone}
+                                                        style={{
+                                                            width: '56px',
+                                                            height: '56px',
+                                                            borderRadius: '50%',
+                                                            background: 'rgba(255, 255, 255, 0.1)',
+                                                            border: '1px solid rgba(255, 255, 255, 0.2)',
+                                                            color: 'var(--white)',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'center',
+                                                            cursor: 'pointer',
+                                                            transition: 'all 0.2s',
+                                                        }}
+                                                        showIcon={true}
+                                                    />
+                                                    <DisconnectButton
+                                                        style={{
+                                                            padding: '0 24px',
+                                                            height: '56px',
+                                                            borderRadius: '28px',
+                                                            background: 'rgba(255, 80, 80, 0.15)',
+                                                            border: '1px solid rgba(255, 80, 80, 0.3)',
+                                                            color: '#ff8080',
+                                                            fontFamily: 'var(--font-body)',
+                                                            fontSize: '14px',
+                                                            fontWeight: '600',
+                                                            letterSpacing: '0.05em',
+                                                            cursor: 'pointer',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            gap: '8px',
+                                                            transition: 'all 0.2s',
+                                                        }}
+                                                    >
+                                                        End Call
+                                                    </DisconnectButton>
+                                                </div>
+                                            </div>
                                         </LiveKitRoom>
                                     </div>
                                 )}
